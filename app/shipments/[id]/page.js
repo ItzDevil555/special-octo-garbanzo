@@ -1,154 +1,162 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
+
 const API = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-
-export default function ShipmentDetails() {
-  const params = useParams();
-  const shipmentId = params?.id;
-
-  const [shipmentData, setShipmentData] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function Home() {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState("");
+  const [eta, setEta] = useState("");
+  const [itemsCount, setItemsCount] = useState(0);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!shipmentId) return;
+  const router = useRouter();
 
-    const fetchShipment = async () => {
-      try {
-        setLoading(true);
+  const uploadFile = async () => {
+    if (!file) {
+      alert("Select a PDF first");
+      return;
+    }
 
-        const res = await fetch(`${API}/shipments/${shipmentId}`);
+    setUploading(true);
+    setProgress(0);
+    setStatus("Uploading file");
+    setEta("Starting...");
+    setItemsCount(0);
+    setError("");
 
-        if (!res.ok) {
-          throw new Error(`Failed to fetch shipment: ${res.status}`);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const uploadResponse = await axios.post(
+        `${API}/upload-with-progress`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
         }
+      );
 
-        const data = await res.json();
-        console.log("Shipment API response:", data);
-        setShipmentData(data);
-      } catch (err) {
-        console.error("Error fetching shipment:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const jobId = uploadResponse.data.job_id;
 
-    fetchShipment();
-  }, [shipmentId]);
+      const interval = setInterval(async () => {
+        try {
+          const statusResponse = await axios.get(
+            `${API}/job-status/${jobId}`
+          );
 
-  if (!shipmentId) {
-    return (
-      <div className="p-10 text-white bg-slate-950 min-h-screen">
-        Loading shipment id...
-      </div>
-    );
-  }
+          const job = statusResponse.data;
 
-  if (loading) {
-    return (
-      <div className="p-10 text-white bg-slate-950 min-h-screen">
-        Loading...
-      </div>
-    );
-  }
+          if (job.error) {
+            clearInterval(interval);
+            setUploading(false);
+            setError(job.error);
+            return;
+          }
 
-  if (error) {
-    return (
-      <div className="p-10 text-red-400 bg-slate-950 min-h-screen">
-        Error: {error}
-      </div>
-    );
-  }
+          setProgress(job.progress || 0);
+          setStatus(job.status || "");
+          setEta(job.eta || "");
+          setItemsCount(job.items_count || 0);
 
-  if (!shipmentData || !shipmentData.shipment || !shipmentData.items) {
-    return (
-      <div className="p-10 text-red-400 bg-slate-950 min-h-screen">
-        Invalid shipment data
-      </div>
-    );
-  }
+          if (job.done) {
+            clearInterval(interval);
+            setUploading(false);
 
-  const { shipment, items } = shipmentData;
+            if (job.shipment_id) {
+              setTimeout(() => {
+                router.push(`/shipments/${job.shipment_id}`);
+              }, 1000);
+            } else {
+              setError("Processing finished but no shipment was created.");
+            }
+          }
+        } catch (pollError) {
+          clearInterval(interval);
+          setUploading(false);
+          setError("Could not get progress status.");
+          console.error(pollError);
+        }
+      }, 1000);
+    } catch (err) {
+      setUploading(false);
+      setError("Upload failed.");
+      console.error(err);
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-8">
-      <h1 className="text-3xl font-bold mb-6">Shipment Details</h1>
+    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+      <div className="w-full max-w-2xl bg-slate-900 rounded-2xl shadow-xl p-8 border border-slate-800">
+        <h1 className="text-3xl font-bold mb-2">Invoice Extractor</h1>
+        <p className="text-slate-400 mb-8">
+          Upload a commercial invoice PDF and extract shipment data into Excel.
+        </p>
 
-      <div className="bg-slate-800 p-4 rounded mb-6">
-        <p><strong>Shipment ID:</strong> {shipment.id}</p>
-        <p><strong>File Name:</strong> {shipment.file_name}</p>
-        <p><strong>Invoice Number:</strong> {shipment.invoice_number || "N/A"}</p>
-        <p><strong>Seller:</strong> {shipment.seller_name || "N/A"}</p>
-        <p><strong>Buyer:</strong> {shipment.buyer_name || "N/A"}</p>
-        <p><strong>Total Items:</strong> {items.length}</p>
-      </div>
+        <div className="mb-6">
+          <input
+            type="file"
+            accept=".pdf"
+            onChange={(e) => setFile(e.target.files[0])}
+            className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4
+                       file:rounded-lg file:border-0 file:text-sm file:font-semibold
+                       file:bg-purple-600 file:text-white hover:file:bg-purple-500"
+          />
+        </div>
 
-      <div className="flex gap-4 mb-6 flex-wrap">
-        <a
-          href={`${API}/shipments/${shipment.id}/export/excel`}
-          className="bg-green-600 px-4 py-2 rounded"
-          target="_blank"
-          rel="noreferrer"
+        <button
+          onClick={uploadFile}
+          disabled={uploading}
+          className={`px-5 py-3 rounded-lg font-semibold transition ${
+            uploading
+              ? "bg-slate-700 text-slate-300 cursor-not-allowed"
+              : "bg-purple-600 hover:bg-purple-500 text-white"
+          }`}
         >
-          Export Excel
-        </a>
+          {uploading ? "Processing..." : "Upload Invoice"}
+        </button>
 
-        <a
-          href={`${API}/shipments/${shipment.id}/export/combined`}
-          className="bg-blue-600 px-4 py-2 rounded"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Export Combined
-        </a>
+        {uploading || progress > 0 ? (
+          <div className="mt-8">
+            <div className="flex justify-between mb-2 text-sm text-slate-300">
+              <span>{status || "Processing..."}</span>
+              <span>{progress}%</span>
+            </div>
 
-        <a
-          href={`${API}/shipments/${shipment.id}/export/saudi`}
-          className="bg-yellow-500 px-4 py-2 rounded text-black"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Export Saudi Format
-        </a>
-      </div>
+            <div className="w-full bg-slate-800 rounded-full h-4 overflow-hidden">
+              <div
+                className="bg-green-500 h-4 transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
 
-      <div className="overflow-auto bg-slate-900 rounded">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-700">
-            <tr>
-              <th className="p-2 text-left">Article No</th>
-              <th className="p-2 text-left">Description</th>
-              <th className="p-2 text-left">Qty</th>
-              <th className="p-2 text-left">UOM</th>
-              <th className="p-2 text-left">Unit Price</th>
-              <th className="p-2 text-left">Origin</th>
-              <th className="p-2 text-left">Product Group</th>
-              <th className="p-2 text-left">Page</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-b border-slate-700">
-                <td className="p-2">{item.article_no}</td>
-                <td className="p-2">{item.description}</td>
-                <td className="p-2">{item.qty}</td>
-                <td className="p-2">{item.uom}</td>
-                <td className="p-2">{item.unit_price}</td>
-                <td className="p-2">{item.origin}</td>
-                <td className="p-2">{item.product_group}</td>
-                <td className="p-2">{item.source_page}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            <div className="mt-4 text-sm text-slate-400 space-y-1">
+              <p>
+                <strong className="text-slate-200">Estimated time:</strong> {eta || "Estimating..."}
+              </p>
+              <p>
+                <strong className="text-slate-200">Current file:</strong> {file?.name || "-"}
+              </p>
+              <p>
+                <strong className="text-slate-200">Extracted items:</strong> {itemsCount}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="mt-6 rounded-lg bg-red-900/40 border border-red-700 p-4 text-red-300">
+            {error}
+          </div>
+        ) : null}
       </div>
     </main>
   );
-
 }
-
-
