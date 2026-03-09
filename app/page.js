@@ -1,5 +1,7 @@
 "use client";
 
+const API = process.env.NEXT_PUBLIC_API_BASE_URL;
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
@@ -163,4 +165,5 @@ export default function Home() {
       </div>
     </main>
   );
+
 }
