@@ -35,7 +35,7 @@ export default function Home() {
 
     try {
       const uploadResponse = await axios.post(
-        "http://127.0.0.1:8000/upload-with-progress",
+`${API}/upload-with-progress`,
         formData,
         {
           headers: {
@@ -167,4 +167,5 @@ export default function Home() {
   );
 
 }
+
 
