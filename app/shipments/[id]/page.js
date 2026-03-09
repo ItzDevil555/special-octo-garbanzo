@@ -5,8 +5,6 @@ const API = process.env.NEXT_PUBLIC_API_BASE_URL;
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-const API = "http://127.0.0.1:8000";
-
 export default function ShipmentDetails() {
   const params = useParams();
   const shipmentId = params?.id;
@@ -152,4 +150,5 @@ export default function ShipmentDetails() {
   );
 
 }
+
 
