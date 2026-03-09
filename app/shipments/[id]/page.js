@@ -23,6 +23,11 @@ export default function Home() {
       return;
     }
 
+    if (!API) {
+      setError("API base URL is missing.");
+      return;
+    }
+
     setUploading(true);
     setProgress(0);
     setStatus("Uploading file");
@@ -48,10 +53,7 @@ export default function Home() {
 
       const interval = setInterval(async () => {
         try {
-          const statusResponse = await axios.get(
-            `${API}/job-status/${jobId}`
-          );
-
+          const statusResponse = await axios.get(`${API}/job-status/${jobId}`);
           const job = statusResponse.data;
 
           if (job.error) {
@@ -123,7 +125,7 @@ export default function Home() {
           {uploading ? "Processing..." : "Upload Invoice"}
         </button>
 
-        {uploading || progress > 0 ? (
+        {(uploading || progress > 0) && (
           <div className="mt-8">
             <div className="flex justify-between mb-2 text-sm text-slate-300">
               <span>{status || "Processing..."}</span>
@@ -134,28 +136,22 @@ export default function Home() {
               <div
                 className="bg-green-500 h-4 transition-all duration-500"
                 style={{ width: `${progress}%` }}
-              ></div>
+              />
             </div>
 
             <div className="mt-4 text-sm text-slate-400 space-y-1">
-              <p>
-                <strong className="text-slate-200">Estimated time:</strong> {eta || "Estimating..."}
-              </p>
-              <p>
-                <strong className="text-slate-200">Current file:</strong> {file?.name || "-"}
-              </p>
-              <p>
-                <strong className="text-slate-200">Extracted items:</strong> {itemsCount}
-              </p>
+              <p><strong className="text-slate-200">Estimated time:</strong> {eta || "Estimating..."}</p>
+              <p><strong className="text-slate-200">Current file:</strong> {file?.name || "-"}</p>
+              <p><strong className="text-slate-200">Extracted items:</strong> {itemsCount}</p>
             </div>
           </div>
-        ) : null}
+        )}
 
-        {error ? (
+        {error && (
           <div className="mt-6 rounded-lg bg-red-900/40 border border-red-700 p-4 text-red-300">
             {error}
           </div>
-        ) : null}
+        )}
       </div>
     </main>
   );
